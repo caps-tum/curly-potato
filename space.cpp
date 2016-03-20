@@ -34,7 +34,7 @@ template <typename spaceT> struct iteration<2, spaceT> {
 		_order(i, j, _space);
 	}
 
-	auto operator*() const noexcept { return std::pair<int, int>(i, j); }
+	auto operator*() const noexcept { return std::make_tuple(i, j); }
 };
 
 // space1d * space1d = space2d?
@@ -110,10 +110,12 @@ int main(int argc, char const *argv[]) {
 	double arr1[100][100], arr2[100][100];
 
 #pragma omp parallel
-	for (auto i : rm_order(static_partition(space2d(1, 99, 1, 99)))) {
-		arr1[i.first][i.second] = (arr2[i.first - 1][i.second] + arr2[i.first + 1][i.second] +
-								   arr2[i.first][i.second - 1] + arr2[i.first][i.second + 1]) /
-								  4;
+	{
+		int i, j;
+		for (auto iteration : rm_order(static_partition(space2d(1, 99, 1, 99)))) {
+			std::tie(i, j) = std::move(iteration);
+			arr1[i][j] = (arr2[i - 1][j] + arr2[i + 1][j] + arr2[i][j - 1] + arr2[i][j + 1]) / 4;
+		}
 	}
 	return 0;
 }
