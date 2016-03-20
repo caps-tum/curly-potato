@@ -90,21 +90,16 @@ template <typename spaceT> struct _rm_order {
 template <typename T> _rm_order<T> rm_order(T instance) { return _rm_order<T>(instance); }
 
 // TODO should allow to select the dimonsion used to partition
-template <typename orderT> struct _static_partition {
-	orderT _order;
+template <typename spaceT> struct _static_partition : public spaceT {
 	_static_partition() = delete;
 
-	_static_partition(orderT o) : _order(o) {
+	_static_partition(spaceT o) : spaceT(o) {
 		int id = omp_get_thread_num();
 		int threads = omp_get_num_threads();
-		int size = _order._space.end_i - _order._space.start_i;
-		_order._space.start_i = (size / threads) * id;
-		if (id != threads - 1) _order._space.end_i = size / threads * (id + 1);
+		int size = spaceT::end_i - spaceT::start_i;
+		spaceT::start_i = (size / threads) * id;
+		if (id != threads - 1) spaceT::end_i = size / threads * (id + 1);
 	}
-
-	auto begin() const noexcept { return _order.begin(); }
-
-	auto end() const noexcept { return _order.end(); }
 };
 
 // just a little helper
@@ -115,7 +110,7 @@ int main(int argc, char const *argv[]) {
 	double arr1[100][100], arr2[100][100];
 
 #pragma omp parallel
-	for (auto i : static_partition(rm_order(space2d(1, 99, 1, 99)))) {
+	for (auto i : rm_order(static_partition(space2d(1, 99, 1, 99)))) {
 		arr1[i.first][i.second] = (arr2[i.first - 1][i.second] + arr2[i.first + 1][i.second] +
 								   arr2[i.first][i.second - 1] + arr2[i.first][i.second + 1]) /
 								  4;
