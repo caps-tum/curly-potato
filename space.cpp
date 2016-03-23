@@ -10,33 +10,42 @@
 
 #include <omp.h>
 
-// prototype for N-DIM iteration
-template <int DIM, typename space> struct iteration;
+template <int N, typename T> struct array_to_tuple {
+	static inline auto get(const T &arr) noexcept {
+		return std::tuple_cat(std::make_tuple(arr[std::tuple_size<T>::value - N]), array_to_tuple<N - 1, T>::get(arr));
+	}
+};
 
-// simple 2-D iteration
-template <typename spaceT> struct iteration<2, spaceT> {
-	int i, j;
+template <typename T> struct array_to_tuple<1, T> {
+	static inline auto get(const T &arr) noexcept { return std::make_tuple(arr[std::tuple_size<T>::value - 1]); }
+};
 
-	std::function<void(int &, int &, spaceT)> _order;
+template <int DIM, typename spaceT> struct iteration {
+	std::array<int, DIM> index;
+
+	std::function<void(std::array<int, DIM> &, spaceT)> _order;
 
 	spaceT _space;
 
-	iteration<2, spaceT>() = delete;
-	iteration<2, spaceT>(const iteration<2, spaceT> &) = default;
+	iteration<DIM, spaceT>() = delete;
+	iteration<DIM, spaceT>(const iteration<DIM, spaceT> &) = default;
 
-	iteration<2, spaceT>(spaceT s) : i(s.start[0]), j(s.start[1]), _space(s) {}
+	iteration<DIM, spaceT>(spaceT s) : index(s.start), _space(s) {}
 
-	bool operator!=(const iteration<2, spaceT> &rhs) const noexcept {
-		return rhs.i != i || rhs.j != j || rhs._space != _space;
+	bool operator!=(const iteration<DIM, spaceT> &rhs) const noexcept {
+		return rhs.index != index || rhs._space != _space;
 	}
 
 	void operator++() noexcept {
 		assert(_order);
-		_order(i, j, _space);
+		_order(index, _space);
 	}
 
-	auto operator*() const noexcept { return std::make_tuple(i, j); }
+	auto operator*() const noexcept { return array_to_tuple<DIM, decltype(index)>::get(index); }
 };
+
+// prevent anyone from using a space with 0 dimension
+template <typename spaceT> struct iteration<0, spaceT>;
 
 // _dense_space<1> * _dense_space<1> = _dense_space<2>?
 template <int DIM> struct _dense_space {
@@ -71,14 +80,14 @@ template <typename spaceT> struct _rm_order {
 	_rm_order(spaceT s) : _space(s) {}
 
 	// TODO generalize it, only ok if spaceT === space2d
-	static void next(int &i, int &j, spaceT space) {
-		++i;
-		if (i >= space.end[0]) {
-			i = space.start[0];
-			++j;
-			if (j >= space.end[1]) {
-				i = space.end[0];
-				j = space.end[1];
+	static void next(std::array<int, 2> &arr, spaceT space) {
+		++arr[0];
+		if (arr[0] >= space.end[0]) {
+			arr[0] = space.start[0];
+			++arr[1];
+			if (arr[1] >= space.end[1]) {
+				arr[0] = space.end[0];
+				arr[1] = space.end[1];
 			}
 		}
 	}
@@ -94,8 +103,8 @@ template <typename spaceT> struct _rm_order {
 	auto end() const noexcept {
 		// FIXME infere dimension from spaceT
 		auto temp = iteration<2, spaceT>(_space);
-		temp.i = _space.end[0];
-		temp.j = _space.end[1];
+		temp.index[0] = _space.end[0];
+		temp.index[1] = _space.end[1];
 		temp._order = next;
 
 		return temp;
