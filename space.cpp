@@ -12,13 +12,13 @@
 
 namespace impl {
 template <int N, typename T> struct array_to_tuple {
-	static inline auto get(const T &arr) noexcept {
+	static auto get(const T &arr) noexcept {
 		return std::tuple_cat(std::make_tuple(arr[std::tuple_size<T>::value - N]), array_to_tuple<N - 1, T>::get(arr));
 	}
 };
 
 template <typename T> struct array_to_tuple<1, T> {
-	static inline auto get(const T &arr) noexcept { return std::make_tuple(arr[std::tuple_size<T>::value - 1]); }
+	static auto get(const T &arr) noexcept { return std::make_tuple(arr[std::tuple_size<T>::value - 1]); }
 };
 }
 
@@ -74,7 +74,7 @@ template <int DIM> struct _dense_space {
 	}
 
   private:
-	template <int N, typename... argsT> inline void init(const int _start, const int _end, argsT... args) {
+	template <int N, typename... argsT> void init(const int _start, const int _end, argsT... args) {
 		static_assert(sizeof...(args) == (N - 1) * 2, "Internal error. Something is broken with our constructor.");
 		start[DIM - N] = _start;
 		limit[DIM - N] = _end;
@@ -88,7 +88,7 @@ template <typename... argsT> auto dense_space(argsT... args) {
 
 namespace impl {
 template <int N, typename T, typename spaceT> struct cm_next {
-	static inline void get(decltype(spaceT::start) &arr, const spaceT &space) noexcept {
+	static void get(decltype(spaceT::start) &arr, const spaceT &space) noexcept {
 		constexpr int index = spaceT::dim - N;
 		++arr[index];
 		if (arr[index] >= space.limit[index]) {
@@ -99,7 +99,7 @@ template <int N, typename T, typename spaceT> struct cm_next {
 };
 
 template <typename T, typename spaceT> struct cm_next<1, T, spaceT> {
-	static inline void get(decltype(spaceT::start) &arr, const spaceT &space) noexcept {
+	static void get(decltype(spaceT::start) &arr, const spaceT &space) noexcept {
 		constexpr int index = spaceT::dim - 1;
 		++arr[index];
 		if (arr[index] >= space.limit[index]) {
