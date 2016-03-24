@@ -206,13 +206,14 @@ template <typename spaceT> struct rm_order {
 // just a little helper
 template <typename T> auto rm_order(T &&instance) { return impl::rm_order<T>(std::forward<T>(instance)); }
 
-template <typename spaceT> struct _static_partition : public spaceT {
-	_static_partition() = delete;
-	_static_partition(const _static_partition<spaceT> &) = default;
-	_static_partition(_static_partition<spaceT> &&) = default;
+namespace impl {
+template <typename spaceT> struct static_partition : public spaceT {
+	static_partition() = delete;
+	static_partition(const static_partition<spaceT> &) = default;
+	static_partition(static_partition<spaceT> &&) = default;
 
-	_static_partition(const int dim, const spaceT &o) : spaceT(o) { partition(dim); }
-	_static_partition(const int dim, spaceT &&o) : spaceT(std::forward<spaceT>(o)) { partition(dim); }
+	static_partition(const int dim, const spaceT &o) : spaceT(o) { partition(dim); }
+	static_partition(const int dim, spaceT &&o) : spaceT(std::forward<spaceT>(o)) { partition(dim); }
 
   private:
 	void partition(const int dim) noexcept {
@@ -223,10 +224,11 @@ template <typename spaceT> struct _static_partition : public spaceT {
 		if (id != threads - 1) spaceT::limit[dim] = size / threads * (id + 1);
 	}
 };
+}
 
 // just a little helper
 template <typename T> auto static_partition(const int dim, T &&instance) {
-	return _static_partition<T>(dim, std::forward<T>(instance));
+	return impl::static_partition<T>(dim, std::forward<T>(instance));
 }
 
 int main(int argc, char const *argv[]) {
@@ -236,7 +238,7 @@ int main(int argc, char const *argv[]) {
 #pragma omp parallel
 	{
 		int i, j;
-		for (const auto &iteration : cm_order(static_partition(0, dense_space(1, 9, 1, 9)))) {
+		for (const auto &iteration : cm_order(static_partition(0, dense_space(1, 99, 1, 99)))) {
 			std::tie(i, j) = std::move(iteration);
 			//#pragma omp critical
 			// std::cout << omp_get_thread_num() << " - " << i << " - " << j << std::endl;
