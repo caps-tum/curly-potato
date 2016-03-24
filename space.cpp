@@ -78,6 +78,12 @@ template <int DIM> struct _dense_space {
 		static_assert(sizeof...(args) == (N - 1) * 2, "Internal error. Something is broken with our constructor.");
 		start[DIM - N] = _start;
 		limit[DIM - N] = _end;
+		init<DIM - 1>(std::forward<argsT>(args)...);
+	}
+
+	template <int N> void init(const int _start, const int _end) {
+		start[DIM - N] = _start;
+		limit[DIM - N] = _end;
 	}
 };
 
