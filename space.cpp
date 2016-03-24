@@ -137,6 +137,57 @@ template <typename spaceT> struct _cm_order {
 // just a little helper
 template <typename T> auto cm_order(T &&instance) { return _cm_order<T>(std::forward<T>(instance)); }
 
+namespace impl {
+template <int N, typename T, typename spaceT> struct rm_next {
+	static void get(decltype(spaceT::start) &arr, const spaceT &space) noexcept {
+		constexpr int index = N - 1;
+		++arr[index];
+		if (arr[index] >= space.limit[index]) {
+			arr[index] = space.start[index];
+			impl::rm_next<N - 1, T, spaceT>::get(arr, space);
+		}
+	}
+};
+
+template <typename T, typename spaceT> struct rm_next<1, T, spaceT> {
+	static void get(decltype(spaceT::start) &arr, const spaceT &space) noexcept {
+		constexpr int index = 1 - 1;
+		++arr[index];
+		if (arr[index] >= space.limit[index]) {
+			arr = space.limit;
+		}
+	}
+};
+}
+
+template <typename spaceT> struct _rm_order {
+	spaceT _space; // could be a partitioned space
+
+	_rm_order(spaceT s) : _space(s) {}
+
+	static void next(decltype(spaceT::start) &arr, const spaceT &space) noexcept {
+		impl::rm_next<spaceT::dim, decltype(spaceT::start), spaceT>::get(arr, space);
+	}
+
+	auto begin() const noexcept {
+		iteration<spaceT::dim, spaceT> temp(_space);
+		temp.order = next;
+
+		return temp;
+	}
+
+	auto end() const noexcept {
+		iteration<spaceT::dim, spaceT> temp(_space);
+		temp.index = _space.limit;
+		temp.order = next;
+
+		return temp;
+	}
+};
+
+// just a little helper
+template <typename T> auto rm_order(T &&instance) { return _rm_order<T>(std::forward<T>(instance)); }
+
 template <typename spaceT> struct _static_partition : public spaceT {
 	_static_partition() = delete;
 
@@ -161,10 +212,10 @@ int main(int argc, char const *argv[]) {
 #pragma omp parallel
 	{
 		int i, j;
-		for (const auto &iteration : cm_order(static_partition(0, dense_space(1, 9, 1, 9)))) {
+		for (const auto &iteration : rm_order(static_partition(0, dense_space(1, 9, 1, 9)))) {
 			std::tie(i, j) = std::move(iteration);
-#pragma omp critical
-			std::cout << omp_get_thread_num() << " - " << i << " - " << j << std::endl;
+			//#pragma omp critical
+			// std::cout << omp_get_thread_num() << " - " << i << " - " << j << std::endl;
 			arr1[i][j] = (arr2[i - 1][j] + arr2[i + 1][j] + arr2[i][j - 1] + arr2[i][j + 1]) / 4;
 		}
 	}
