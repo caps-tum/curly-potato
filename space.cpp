@@ -52,30 +52,31 @@ template <int DIM, typename spaceT> struct iteration {
 // prevent anyone from using a space with 0 dimension
 template <typename spaceT> struct iteration<0, spaceT>;
 
-// _dense_space<1> * _dense_space<1> = _dense_space<2>?
-template <int DIM> struct _dense_space {
+namespace impl {
+// dense_space<1> * dense_space<1> = dense_space<2>?
+template <int DIM> struct dense_space {
 	static constexpr int dim = DIM;
 
 	std::array<int, DIM> start, limit;
 
-	_dense_space(const _dense_space<DIM> &s) = default;
-	_dense_space(_dense_space<DIM> &&s) = default;
+	dense_space(const dense_space<DIM> &s) = default;
+	dense_space(dense_space<DIM> &&s) = default;
 
 	// first parameter const int to make sure it is not used as a copy constructor
-	template <typename... argsT> _dense_space(const int i, argsT &&... args) {
+	template <typename... argsT> dense_space(const int i, argsT &&... args) {
 		static_assert(sizeof...(args) + 1 == DIM * 2, "Missing constructor parameters for dense_space.");
 		init<DIM>(i, std::forward<argsT>(args)...);
 	}
 
-	bool operator!=(const _dense_space<DIM> &rhs) const noexcept { return rhs.start != start || rhs.limit != limit; }
+	bool operator!=(const dense_space<DIM> &rhs) const noexcept { return rhs.start != start || rhs.limit != limit; }
 
 	auto begin() const noexcept {
-		auto temp = iteration<DIM, _dense_space<DIM>>(*this);
+		auto temp = iteration<DIM, dense_space<DIM>>(*this);
 		temp.index = start;
 		return temp;
 	}
 	auto end() const noexcept {
-		auto temp = iteration<DIM, _dense_space<DIM>>(*this);
+		auto temp = iteration<DIM, dense_space<DIM>>(*this);
 		temp.index = limit;
 		return temp;
 	}
@@ -93,11 +94,12 @@ template <int DIM> struct _dense_space {
 		limit[DIM - N] = _end;
 	}
 };
+}
 
 // just a little helper
 template <typename... argsT> auto dense_space(argsT &&... args) {
 	static_assert(sizeof...(args) % 2 == 0, "Wrong number of parameters for dense_space");
-	return _dense_space<sizeof...(argsT) / 2>(std::forward<argsT>(args)...);
+	return impl::dense_space<sizeof...(argsT) / 2>(std::forward<argsT>(args)...);
 }
 
 namespace impl {
@@ -121,17 +123,16 @@ template <typename T, typename spaceT> struct cm_next<1, T, spaceT> {
 		}
 	}
 };
-}
 
-template <typename spaceT> struct _cm_order {
+template <typename spaceT> struct cm_order {
 	spaceT _space; // could be a partitioned space
 
-	_cm_order() = delete;
-	_cm_order(const _cm_order<spaceT> &) = default;
-	_cm_order(_cm_order<spaceT> &&) = default;
+	cm_order() = delete;
+	cm_order(const cm_order<spaceT> &) = default;
+	cm_order(cm_order<spaceT> &&) = default;
 
-	_cm_order(const spaceT &s) : _space(s) {}
-	_cm_order(spaceT &&s) : _space(std::forward<spaceT>(s)) {}
+	cm_order(const spaceT &s) : _space(s) {}
+	cm_order(spaceT &&s) : _space(std::forward<spaceT>(s)) {}
 
 	auto begin() const noexcept {
 		iteration<spaceT::dim, spaceT> temp(_space);
@@ -148,9 +149,10 @@ template <typename spaceT> struct _cm_order {
 		return temp;
 	}
 };
+}
 
 // just a little helper
-template <typename T> auto cm_order(T &&instance) { return _cm_order<T>(std::forward<T>(instance)); }
+template <typename T> auto cm_order(T &&instance) { return impl::cm_order<T>(std::forward<T>(instance)); }
 
 namespace impl {
 template <int N, typename T, typename spaceT> struct rm_next {
@@ -173,17 +175,16 @@ template <typename T, typename spaceT> struct rm_next<1, T, spaceT> {
 		}
 	}
 };
-}
 
-template <typename spaceT> struct _rm_order {
+template <typename spaceT> struct rm_order {
 	spaceT _space; // could be a partitioned space
 
-	_rm_order() = delete;
-	_rm_order(const _rm_order<spaceT> &) = default;
-	_rm_order(_rm_order<spaceT> &&) = default;
+	rm_order() = delete;
+	rm_order(const rm_order<spaceT> &) = default;
+	rm_order(rm_order<spaceT> &&) = default;
 
-	_rm_order(const spaceT &s) : _space(s) {}
-	_rm_order(spaceT &&s) : _space(std::forward<spaceT>(s)) {}
+	rm_order(const spaceT &s) : _space(s) {}
+	rm_order(spaceT &&s) : _space(std::forward<spaceT>(s)) {}
 
 	auto begin() const noexcept {
 		iteration<spaceT::dim, spaceT> temp(_space);
@@ -200,9 +201,10 @@ template <typename spaceT> struct _rm_order {
 		return temp;
 	}
 };
+}
 
 // just a little helper
-template <typename T> auto rm_order(T &&instance) { return _rm_order<T>(std::forward<T>(instance)); }
+template <typename T> auto rm_order(T &&instance) { return impl::rm_order<T>(std::forward<T>(instance)); }
 
 template <typename spaceT> struct _static_partition : public spaceT {
 	_static_partition() = delete;
