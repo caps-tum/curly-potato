@@ -12,24 +12,28 @@
 
 namespace impl {
 template <int N, typename T> struct array_to_tuple {
-	static auto get(const T &arr) noexcept {
+	constexpr static auto get(const T &arr) noexcept {
 		return std::tuple_cat(std::make_tuple(arr[std::tuple_size<T>::value - N]), array_to_tuple<N - 1, T>::get(arr));
 	}
 };
 
 template <typename T> struct array_to_tuple<1, T> {
-	static auto get(const T &arr) noexcept { return std::make_tuple(arr[std::tuple_size<T>::value - 1]); }
+	constexpr static auto get(const T &arr) noexcept { return std::make_tuple(arr[std::tuple_size<T>::value - 1]); }
 };
 }
 
 template <int DIM, typename spaceT> struct iteration {
+	static constexpr int dim = DIM;
+
 	std::array<int, DIM> index;
 	std::function<void(decltype(index) &, spaceT)> order;
 
 	spaceT _space;
 
 	iteration<DIM, spaceT>() = delete;
+
 	iteration<DIM, spaceT>(const iteration<DIM, spaceT> &) = default;
+	iteration<DIM, spaceT>(spaceT &&s) : index(s.start), _space(std::forward<spaceT>(s)) {}
 
 	iteration<DIM, spaceT>(const spaceT &s) : index(s.start), _space(s) {}
 
@@ -50,14 +54,17 @@ template <typename spaceT> struct iteration<0, spaceT>;
 
 // _dense_space<1> * _dense_space<1> = _dense_space<2>?
 template <int DIM> struct _dense_space {
-	std::array<int, DIM> start, limit;
 	static constexpr int dim = DIM;
 
-	template <typename... argsT> _dense_space(const int _start, const int _limit, argsT... args) {
-		static_assert(sizeof...(args) == (DIM - 1) * 2, "Missing constructor parameters for dense_space.");
-		start[0] = _start;
-		limit[0] = _limit;
-		init<DIM - 1>(std::forward<argsT>(args)...);
+	std::array<int, DIM> start, limit;
+
+	_dense_space(const _dense_space<DIM> &s) = default;
+	_dense_space(_dense_space<DIM> &&s) = default;
+
+	// first parameter const int to make sure it is not used as a copy constructor
+	template <typename... argsT> _dense_space(const int i, argsT &&... args) {
+		static_assert(sizeof...(args) + 1 == DIM * 2, "Missing constructor parameters for dense_space.");
+		init<DIM>(i, std::forward<argsT>(args)...);
 	}
 
 	bool operator!=(const _dense_space<DIM> &rhs) const noexcept { return rhs.start != start || rhs.limit != limit; }
@@ -74,11 +81,11 @@ template <int DIM> struct _dense_space {
 	}
 
   private:
-	template <int N, typename... argsT> void init(const int _start, const int _end, argsT... args) {
+	template <int N, typename... argsT> void init(const int _start, const int _end, argsT &&... args) noexcept {
 		static_assert(sizeof...(args) == (N - 1) * 2, "Internal error. Something is broken with our constructor.");
 		start[DIM - N] = _start;
 		limit[DIM - N] = _end;
-		init<DIM - 1>(std::forward<argsT>(args)...);
+		init<N - 1>(std::forward<argsT>(args)...);
 	}
 
 	template <int N> void init(const int _start, const int _end) {
@@ -88,7 +95,8 @@ template <int DIM> struct _dense_space {
 };
 
 // just a little helper
-template <typename... argsT> auto dense_space(argsT... args) {
+template <typename... argsT> auto dense_space(argsT &&... args) {
+	static_assert(sizeof...(args) % 2 == 0, "Wrong number of parameters for dense_space");
 	return _dense_space<sizeof...(argsT) / 2>(std::forward<argsT>(args)...);
 }
 
@@ -118,15 +126,16 @@ template <typename T, typename spaceT> struct cm_next<1, T, spaceT> {
 template <typename spaceT> struct _cm_order {
 	spaceT _space; // could be a partitioned space
 
-	_cm_order(spaceT s) : _space(s) {}
+	_cm_order() = delete;
+	_cm_order(const _cm_order<spaceT> &) = default;
+	_cm_order(_cm_order<spaceT> &&) = default;
 
-	static void next(decltype(spaceT::start) &arr, const spaceT &space) noexcept {
-		impl::cm_next<spaceT::dim, decltype(spaceT::start), spaceT>::get(arr, space);
-	}
+	_cm_order(const spaceT &s) : _space(s) {}
+	_cm_order(spaceT &&s) : _space(std::forward<spaceT>(s)) {}
 
 	auto begin() const noexcept {
 		iteration<spaceT::dim, spaceT> temp(_space);
-		temp.order = next;
+		temp.order = impl::cm_next<spaceT::dim, decltype(_space.start), spaceT>::get;
 
 		return temp;
 	}
@@ -134,7 +143,7 @@ template <typename spaceT> struct _cm_order {
 	auto end() const noexcept {
 		iteration<spaceT::dim, spaceT> temp(_space);
 		temp.index = _space.limit;
-		temp.order = next;
+		temp.order = impl::cm_next<spaceT::dim, decltype(_space.start), spaceT>::get;
 
 		return temp;
 	}
@@ -169,15 +178,16 @@ template <typename T, typename spaceT> struct rm_next<1, T, spaceT> {
 template <typename spaceT> struct _rm_order {
 	spaceT _space; // could be a partitioned space
 
-	_rm_order(spaceT s) : _space(s) {}
+	_rm_order() = delete;
+	_rm_order(const _rm_order<spaceT> &) = default;
+	_rm_order(_rm_order<spaceT> &&) = default;
 
-	static void next(decltype(spaceT::start) &arr, const spaceT &space) noexcept {
-		impl::rm_next<spaceT::dim, decltype(spaceT::start), spaceT>::get(arr, space);
-	}
+	_rm_order(const spaceT &s) : _space(s) {}
+	_rm_order(spaceT &&s) : _space(std::forward<spaceT>(s)) {}
 
 	auto begin() const noexcept {
 		iteration<spaceT::dim, spaceT> temp(_space);
-		temp.order = next;
+		temp.order = impl::rm_next<spaceT::dim, decltype(_space.start), spaceT>::get;
 
 		return temp;
 	}
@@ -185,7 +195,7 @@ template <typename spaceT> struct _rm_order {
 	auto end() const noexcept {
 		iteration<spaceT::dim, spaceT> temp(_space);
 		temp.index = _space.limit;
-		temp.order = next;
+		temp.order = impl::rm_next<spaceT::dim, decltype(_space.start), spaceT>::get;
 
 		return temp;
 	}
@@ -196,8 +206,14 @@ template <typename T> auto rm_order(T &&instance) { return _rm_order<T>(std::for
 
 template <typename spaceT> struct _static_partition : public spaceT {
 	_static_partition() = delete;
+	_static_partition(const _static_partition<spaceT> &) = default;
+	_static_partition(_static_partition<spaceT> &&) = default;
 
-	_static_partition(const int dim, spaceT o) : spaceT(o) {
+	_static_partition(const int dim, const spaceT &o) : spaceT(o) { partition(dim); }
+	_static_partition(const int dim, spaceT &&o) : spaceT(std::forward<spaceT>(o)) { partition(dim); }
+
+  private:
+	void partition(const int dim) noexcept {
 		int id = omp_get_thread_num();
 		int threads = omp_get_num_threads();
 		int size = spaceT::limit[dim] - spaceT::start[dim];
@@ -218,7 +234,7 @@ int main(int argc, char const *argv[]) {
 #pragma omp parallel
 	{
 		int i, j;
-		for (const auto &iteration : rm_order(static_partition(0, dense_space(1, 9, 1, 9)))) {
+		for (const auto &iteration : cm_order(static_partition(0, dense_space(1, 9, 1, 9)))) {
 			std::tie(i, j) = std::move(iteration);
 			//#pragma omp critical
 			// std::cout << omp_get_thread_num() << " - " << i << " - " << j << std::endl;
