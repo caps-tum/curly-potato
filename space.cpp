@@ -5,6 +5,7 @@
 #include <iostream>
 #include <tuple>
 #include <type_traits>
+#include <array>
 
 #include <cassert>
 
